@@ -1,18 +1,22 @@
 import torch
 import time
-
+import logging
 from .meters import AverageMeter, ProgressMeter, accuracy
 from .utils import get_lr
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 '''
 Keep track of the steps covered and write to TB
 '''
 total_train_steps = 1
 total_val_steps = 1
 
+
 def train(train_loader, model, criterion, optimizer, epoch, cfg, writer=None):
     '''
-    Train over one epoch on a mini-batch 
+    Train over one epoch on a mini-batch
     '''
     global total_train_steps
     batch_time = AverageMeter('Time', ':6.3f')
@@ -20,9 +24,14 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg, writer=None):
     losses = AverageMeter('Loss', ':4.4f')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(len(train_loader), batch_time, data_time, losses, top1,
-                             top5, prefix="Epoch: [{}]".format(epoch))
-    
+    progress = ProgressMeter(len(train_loader),
+                             batch_time,
+                             data_time,
+                             losses,
+                             top1,
+                             top5,
+                             prefix="Epoch: [{}]".format(epoch))
+
     #switch to training
     model.train()
 
@@ -30,14 +39,13 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg, writer=None):
     for i, (images, label) in enumerate(train_loader):
         data_time.update(time.time() - end)
 
-        if cfg.GPU is not None:
-            images = images.cuda(cfg.GPU, non_blocking=True)
-        label = label.cuda(cfg.GPU, non_blocking=True)
+        images = images.to(device)
+        label = label.to(device)
 
         output = model(images)
         loss = criterion(output, label)
 
-        acc1, acc5 = accuracy(output, label, topk=(1,5))
+        acc1, acc5 = accuracy(output, label, topk=(1, 5))
         losses.update(loss.item(), images.size(0))
         top1.update(acc1[0], images.size(0))
         top5.update(acc5[0], images.size(0))
@@ -58,10 +66,12 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg, writer=None):
                 writer.add_scalar('Train_loss', loss.item(), total_train_steps)
                 writer.add_scalar('Train_acc@1', acc1[0], total_train_steps)
                 writer.add_scalar('Train_acc@5', acc5[0], total_train_steps)
-                writer.add_scalar('Train_LR', get_lr(optimizer), total_train_steps)
-        
+                writer.add_scalar('Train_LR', get_lr(optimizer),
+                                  total_train_steps)
+
         total_train_steps += 1
-            
+
+
 def validate(val_loader, model, criterion, cfg, writer=None):
     '''
     Validate over one pass on the validation set
@@ -71,7 +81,11 @@ def validate(val_loader, model, criterion, cfg, writer=None):
     losses = AverageMeter('Loss', ':4.4f')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(len(val_loader), batch_time, losses, top1, top5,
+    progress = ProgressMeter(len(val_loader),
+                             batch_time,
+                             losses,
+                             top1,
+                             top5,
                              prefix='Test: ')
 
     # switch to evaluate mode
@@ -80,9 +94,8 @@ def validate(val_loader, model, criterion, cfg, writer=None):
     with torch.no_grad():
         end = time.time()
         for i, (images, label) in enumerate(val_loader):
-            if cfg.GPU is not None:
-                images = images.cuda(cfg.GPU, non_blocking=True)
-            label = label.cuda(cfg.GPU, non_blocking=True)
+            images = images.to(device)
+            label = label.to(device)
 
             # compute output
             output = model(images)
@@ -105,11 +118,10 @@ def validate(val_loader, model, criterion, cfg, writer=None):
                     writer.add_scalar('Val_loss', loss.item(), total_val_steps)
                     writer.add_scalar('Val_acc@1', acc1[0], total_val_steps)
                     writer.add_scalar('Val_acc@5', acc5[0], total_val_steps)
-            
+
             total_val_steps += 1
-            
-            
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-              .format(top1=top1, top5=top5))
+
+        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'.format(top1=top1,
+                                                                    top5=top5))
 
     return top1.avg

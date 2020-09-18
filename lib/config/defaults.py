@@ -10,7 +10,7 @@ __C = edict()
 cfg = __C
 
 '''
-General  
+General
 '''
 __C.NUM_WORKERS = 2
 
@@ -22,7 +22,7 @@ __C.ARCH = "alexnet"
 
 __C.EXP_NAME = "basic_224"
 
-__C.DEVICE = "cuda"
+__C.DEVICE = "cpu"
 
 '''
 Training setting
@@ -34,6 +34,7 @@ __C.TRAIN.LEARNING_RATE = 0.01
 __C.TRAIN.NUM_EPOCHS = 90
 
 __C.TRAIN.LR_DECAY_STEP = 30
+
 __C.TRAIN.GAMMA = 0.1
 
 __C.TRAIN.BATCH_SIZE = 12
