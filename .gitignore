@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 output/
+.vscode
+.ipynb_checkpoints
+*.pth
