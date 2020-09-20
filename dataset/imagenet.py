@@ -21,8 +21,10 @@ class ImageNetDataset(Dataset):
 
         if not ("train" in self.split or "val" in self.split):
             raise Exception("Such split does not exist")
-
+                
         self.data_path = os.path.join(data_path, split)
+        if not os.path.exists(self.data_path):
+            raise Exception("Data path: {} does not exist for split {}".format(self.data_path, self.split))
 
         # Find list of classes and store
         class_names = [d for d in os.listdir(self.data_path) if os.path.isdir(os.path.join(self.data_path, d))]

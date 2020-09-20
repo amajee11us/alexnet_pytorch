@@ -30,6 +30,8 @@ class CIFAR10Dataset(Dataset):
             raise Exception("Such split does not exist")
 
         self.data_path = data_path
+        if not os.path.exists(self.data_path):
+            raise Exception("Data path: {} does not exist for split {}".format(self.data_path, self.split))
 
         _cifar10_obj = CIFAR10(root=self.data_path,
                                train=True if self.split == "train" else False,
