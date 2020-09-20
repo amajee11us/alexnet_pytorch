@@ -64,8 +64,8 @@ def train(train_loader, model, criterion, optimizer, epoch, cfg, writer=None):
             if not writer == None:
                 # add scalars to write
                 writer.add_scalar('Train_loss', loss.item(), total_train_steps)
-                writer.add_scalar('Train_acc@1', acc1[0], total_train_steps)
-                writer.add_scalar('Train_acc@5', acc5[0], total_train_steps)
+                writer.add_scalar('Train_acc_1', acc1[0], total_train_steps)
+                writer.add_scalar('Train_acc_5', acc5[0], total_train_steps)
                 writer.add_scalar('Train_LR', get_lr(optimizer),
                                   total_train_steps)
 
@@ -116,8 +116,8 @@ def validate(val_loader, model, criterion, cfg, writer=None):
                 if not writer == None:
                     # add scalars to write
                     writer.add_scalar('Val_loss', loss.item(), total_val_steps)
-                    writer.add_scalar('Val_acc@1', acc1[0], total_val_steps)
-                    writer.add_scalar('Val_acc@5', acc5[0], total_val_steps)
+                    writer.add_scalar('Val_acc_1', acc1[0], total_val_steps)
+                    writer.add_scalar('Val_acc_5', acc5[0], total_val_steps)
 
             total_val_steps += 1
 

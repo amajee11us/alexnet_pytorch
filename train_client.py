@@ -42,11 +42,6 @@ def parse_args():
                         dest='config_file',
                         default='configs/alexnet_224x224.yaml',
                         help='model architecture (default: alexnet)')
-    parser.add_argument('-a',
-                        '--arch',
-                        metavar='ARCH',
-                        default='alexnet',
-                        help='model architecture (default: alexnet)')
     parser.add_argument('-j',
                         '--workers',
                         default=4,
@@ -58,10 +53,6 @@ def parse_args():
                         type=str,
                         metavar='PATH',
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--opt_level',
-                        default="O1",
-                        type=str,
-                        help="Choose which accuracy to train. (default: 'O1')")
     parser.add_argument('--pretrained',
                         dest='pretrained',
                         action='store_true',
@@ -70,7 +61,7 @@ def parse_args():
                         default=None,
                         type=int,
                         help='seed for initializing training. ')
-    
+
     args = parser.parse_args()
     return args
 
@@ -84,7 +75,6 @@ def main():
     # Select appropriate device
     device = get_target_device(cfg)
     log.info(f'Using {device} for execution.')
-    
     '''
     Model/Optimizer setup
     '''
@@ -140,7 +130,8 @@ def main():
                                      std=[0.229, 0.224, 0.225]),
             ]))
     else:
-        log.error("No TRAIN dataset with name {} found.".format(cfg.TRAIN.DATASET))
+        log.error("No TRAIN dataset with name {} found.".format(
+            cfg.TRAIN.DATASET))
 
     # Now choose the Validation dataset
     if "cifar" in cfg.TEST.DATASET:
@@ -169,7 +160,8 @@ def main():
                                      std=[0.229, 0.224, 0.225]),
             ]))
     else:
-        log.error("No VAL dataset with name {} found.".format(cfg.TRAIN.DATASET))
+        log.error("No VAL dataset with name {} found.".format(
+            cfg.TRAIN.DATASET))
 
     log.info(
         "Dataset created:\n\tTRAIN images : {}\n\tVAL images: {}\n\tNUM_CLASSES: {}"
@@ -183,13 +175,13 @@ def main():
                                                batch_size=cfg.TRAIN.BATCH_SIZE)
 
     val_loader = torch.utils.data.DataLoader(
-                                                val_dataset,
-                                                shuffle=True,
-                                                pin_memory=True,
-                                                num_workers=cfg.NUM_WORKERS,
-                                                drop_last=True,
-                                                batch_size=cfg.TRAIN.BATCH_SIZE  #TODO: See if this works and update
-                                            )
+        val_dataset,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=cfg.NUM_WORKERS,
+        drop_last=True,
+        batch_size=cfg.TRAIN.BATCH_SIZE  #TODO: See if this works and update
+    )
     '''
     Start Training with specified config.
     '''
