@@ -125,3 +125,16 @@ def validate(val_loader, model, criterion, cfg, writer=None):
                                                                     top5=top5))
 
     return top1.avg
+
+
+def resume_from_ckpt(ckpt_path, model, optimizer):
+    '''
+    Function to load a checkpoint file and resume from there
+    '''
+    checkpoint = torch.load(ckpt_path)
+    # load model weights
+    model.load_state_dict(checkpoint['state_dict'])
+    # load optimizer weights
+    optimizer.load_state_dict(checkpoint['optimizer'])
+
+    log.info("Loaded checkpoint from : {}".format(ckpt_path))

@@ -16,7 +16,7 @@ from dataset import imagenet
 from dataset import cifar10
 
 from lib import model
-from lib.engine import train, validate
+from lib.engine import train, validate, resume_from_ckpt
 from lib.utils import *
 from lib.config.conf import cfg_from_file
 from lib.config.conf import __C as cfg
@@ -89,7 +89,6 @@ def main():
     if 'gpu' in cfg.DEVICE:
         alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
 
-    # TODO: Add code to resume from a checkpoint
     # Create optimizer
     optimizer = torch.optim.Adam(params=alexnet.parameters(), lr=0.0001)
     # Create an LR scheduler, Multiply rate by 0.1 every LR_STEP
@@ -97,6 +96,11 @@ def main():
         optimizer, step_size=cfg.TRAIN.LR_DECAY_STEP, gamma=cfg.TRAIN.GAMMA)
     # Define loss criterion
     criterion = torch.nn.CrossEntropyLoss().to(device)
+    '''
+    Resume from a checkpoint
+    pass the model and the optimizer and load the stuff
+    '''
+    resume_from_ckpt("model_best.pth", alexnet, optimizer)
     '''
     Load and prepare datasets
     Supported CIFAR10/Imagenet.
@@ -109,7 +113,9 @@ def main():
             split='train',
             transform=transforms.Compose([
                 transforms.ToPILImage(),
-                transforms.RandomCrop(32),  # square image transform
+                transforms.Resize(256),  # CIFAR has 32x32 images
+                transforms.RandomCrop(
+                    cfg.TRAIN.IMAGE_SIZE),  # square image transform
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(
@@ -140,8 +146,9 @@ def main():
             split='val',
             transform=transforms.Compose([
                 transforms.ToPILImage(),
-                transforms.RandomCrop(32),  # square image transform
-                transforms.RandomHorizontalFlip(),
+                transforms.Resize(256),  # CIFAR has 32x32 images
+                transforms.RandomCrop(
+                    cfg.TRAIN.IMAGE_SIZE),  # square image transform
                 transforms.ToTensor(),
                 transforms.Normalize(
                     mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
@@ -210,7 +217,7 @@ def main():
                 'arch': cfg.ARCH,
                 'state_dict': alexnet.state_dict(),
                 'best_acc1': best_acc1,
-                'optimzer': optimizer.state_dict(),
+                'optimizer': optimizer.state_dict(),
                 'lr': get_lr(optimizer)
             },
             is_best=check_best)
