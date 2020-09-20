@@ -6,6 +6,10 @@ import torch
 import shutil
 import os
 import os.path as osp
+import logging
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 def adjust_learning_rate(optimizer, epoch, cfg):
     """Sets the learning rate to the initial LR decayed by 10 every 30 (say) epochs"""
@@ -36,3 +40,20 @@ def get_output_tb_dir(cfg):
 
 def get_output_dir():
     pass
+
+def get_target_device(cfg):
+  '''
+  Returns a device to dump all workings into.
+  '''
+  device = torch.device("cpu")
+  if "gpu" in cfg.DEVICE:
+    if not torch.cuda.is_available():
+        log.warning(
+            f'CUDA is NOT available. Fall-back initiated to CPU.'
+        )
+        # fallback already initialized so no need to do it again
+    else:
+        # Here we have CUDA 
+        device = torch.device("cuda") 
+  return device       
+    

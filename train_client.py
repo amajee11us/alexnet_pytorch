@@ -85,24 +85,20 @@ def parse_args():
 
 def main():
     args = parse_args()
-    '''
-    CUDA/CPU setup
-    '''
-    if args.use_gpu:
-        if not torch.cuda.is_available():
-            raise Exception(
-                f'CUDA is NOT available. Remove the --use-gpu flag to fall back to CPU.'
-            )
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    log.info(f'Using {device} for execution.')
     # Get configuration
+    log.info("Reading config from file: {}".format(args.config_file))
     cfg_from_file(args.config_file)
-    cfg.DEVICE = device
     pprint.PrettyPrinter(indent=4).pprint(cfg)
+    '''
+    CUDA/CPU setup. Making a dynamic decision
+    '''
+    device = get_target_device(cfg)
+    log.info(f'Using {device} for execution.')
+    
     '''
     Model/Optimizer setup
     '''
-    tbwriter = SummaryWriter(logdir=get_output_tb_dir(cfg))
+    tbwriter = SummaryWriter(log_dir=get_output_tb_dir(cfg))
     seed = torch.initial_seed()
     log.info("Using Seed : {}".format(seed))
 
@@ -110,7 +106,7 @@ def main():
     alexnet = model.AlexNet(cfg=cfg)
     alexnet = alexnet.to(device)
     log.info(alexnet)
-    if device == 'cuda':
+    if 'cuda' in device:
         alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=[cfg.GPU])
 
     # TODO: Add code to resume from a checkpoint
@@ -159,9 +155,9 @@ def main():
             data_path=cfg.TRAIN.DATA_DIR,
             split='train',
             transform=transforms.Compose([
-                # transforms.RandomResizedCrop(cfg.TRAIN.IMAGE_SIZE),
+                transforms.RandomResizedCrop(cfg.TRAIN.IMAGE_SIZE),
                 #transforms.CenterCrop(cfg.TRAIN.IMAGE_SIZE),
-                # transforms.RandomHorizontalFlip(),
+                transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225]),
