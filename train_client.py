@@ -21,15 +21,8 @@ from lib.utils import *
 from lib.config.conf import cfg_from_file
 from lib.config.conf import __C as cfg
 
-OUTPUT_DIR = 'alexnet_data_out'
-LOG_DIR = OUTPUT_DIR + '/tblogs'  # tensorboard logs
-CHECKPOINT_DIR = OUTPUT_DIR + '/models'  # model checkpoints
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
-
-# make checkpoint path directory
-os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 
 def parse_args():
@@ -49,7 +42,7 @@ def parse_args():
                         metavar='N',
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--resume',
-                        default='',
+                        default=None,
                         type=str,
                         metavar='PATH',
                         help='path to latest checkpoint (default: none)')
@@ -100,7 +93,9 @@ def main():
     Resume from a checkpoint
     pass the model and the optimizer and load the stuff
     '''
-    resume_from_ckpt("model_best.pth", alexnet, optimizer)
+    print(args.resume)
+    if not args.resume == None:
+        resume_from_ckpt(args.resume, alexnet, optimizer)
     '''
     Load and prepare datasets
     Supported CIFAR10/Imagenet.
@@ -211,16 +206,15 @@ def main():
         check_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
 
-        save_checkpoint(
-            {
-                'epoch': epoch + 1,
-                'arch': cfg.ARCH,
-                'state_dict': alexnet.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer': optimizer.state_dict(),
-                'lr': get_lr(optimizer)
-            },
-            is_best=check_best)
+        save_checkpoint(cfg, {
+            'epoch': epoch + 1,
+            'arch': cfg.ARCH,
+            'state_dict': alexnet.state_dict(),
+            'best_acc1': best_acc1,
+            'optimizer': optimizer.state_dict(),
+            'lr': get_lr(optimizer)
+        },
+                        is_best=check_best)
 
 
 if __name__ == "__main__":

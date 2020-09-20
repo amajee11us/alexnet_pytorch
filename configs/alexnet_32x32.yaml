@@ -1,8 +1,8 @@
-EXP_NAME: "basic_32"
+EXP_NAME: "basic_cifar_32"
 DEVICE: "gpu"
 TRAIN:
     LEARNING_RATE: 0.01
-    IMAGE_SIZE: 32
+    IMAGE_SIZE: 224 # resized from 32
     DATASET: "cifar"
     DATA_DIR: 'data/cifar10'
     BATCH_SIZE: 128
@@ -13,4 +13,4 @@ PRINT_FREQUENCY: 100
 
 TEST:
     DATASET: "cifar"
-    DATA_DIR: '~/workspace/ton_618/data/cifar10'
+    DATA_DIR: 'data/cifar10'
