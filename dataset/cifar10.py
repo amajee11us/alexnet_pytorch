@@ -41,12 +41,8 @@ class CIFAR10Dataset(Dataset):
                                transform=self.transform,
                                download=download)
         # store as merged list
-        if self.split == "train":
-            data = _cifar10_obj.train_data
-            labels = np.array(_cifar10_obj.train_labels)
-        else:
-            data = _cifar10_obj.test_data
-            labels = np.array(_cifar10_obj.test_labels)
+        data = _cifar10_obj.data
+        labels = np.array(_cifar10_obj.targets)
         self.data_store = list(zip(data, labels))
 
         # generate random shuffled samples
