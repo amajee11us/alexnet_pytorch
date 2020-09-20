@@ -1,9 +1,9 @@
 import torch
 import shutil
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
-
     def __init__(self, name, fmt=':f'):
         self.count = 0
         self.sum = 0
@@ -40,7 +40,8 @@ class ProgressMeter(object):
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
-def accuracy(output, target, topk=(1,)):
+
+def accuracy(output, target, topk=(1, )):
     """Computes the accuracy over the k top predictions for the specified values of k"""
     with torch.no_grad():
         maxk = max(topk)

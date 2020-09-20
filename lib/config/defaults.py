@@ -8,13 +8,12 @@ from easydict import EasyDict as edict
 __C = edict()
 
 cfg = __C
-
 '''
 General
 '''
 __C.NUM_WORKERS = 2
 
-__C.GPU = [0] # pass a set of GPUS for data-parallel
+__C.GPU = [0]  # pass a set of GPUS for data-parallel
 
 __C.PRINT_FREQUENCY = 10
 
@@ -23,7 +22,6 @@ __C.ARCH = "alexnet"
 __C.EXP_NAME = "basic_224"
 
 __C.DEVICE = "cpu"
-
 '''
 Training setting
 '''
@@ -48,7 +46,6 @@ __C.TRAIN.DATASET = "imagenet"
 __C.TRAIN.DATA_DIR = 'data/imagenet'
 
 __C.TRAIN.DROPOUT_RATE = 0.5
-
 '''
 Testing Settings
 '''
