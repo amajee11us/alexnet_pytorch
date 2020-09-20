@@ -14,7 +14,7 @@ General
 '''
 __C.NUM_WORKERS = 2
 
-__C.GPU = [0]
+__C.GPU = [0] # pass a set of GPUS for data-parallel
 
 __C.PRINT_FREQUENCY = 10
 
@@ -43,6 +43,8 @@ __C.TRAIN.IMAGE_SIZE = 224
 
 __C.TRAIN.NUM_CLASSES = 1000
 
+__C.TRAIN.DATASET = "imagenet"
+
 __C.TRAIN.DATA_DIR = 'data/imagenet'
 
 __C.TRAIN.DROPOUT_RATE = 0.5
@@ -51,5 +53,7 @@ __C.TRAIN.DROPOUT_RATE = 0.5
 Testing Settings
 '''
 __C.TEST = edict()
+
+__C.TEST.DATASET = "imagenet"
 
 __C.TEST.DATA_DIR = 'data/imagenet'

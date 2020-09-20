@@ -42,9 +42,6 @@ def parse_args():
                         dest='config_file',
                         default='configs/alexnet_224x224.yaml',
                         help='model architecture (default: alexnet)')
-    parser.add_argument('--dataset',
-                        default='cifar',
-                        help='Choose from imagenet/cifar')
     parser.add_argument('-a',
                         '--arch',
                         metavar='ARCH',
@@ -113,9 +110,10 @@ def main():
     '''
     Load and prepare datasets
     Supported CIFAR10/Imagenet.
-    TODO: Add more
+    TODO: MOVE ALL THIS TO A FACTORY CLASS
     '''
-    if args.dataset == 'cifar':
+    # First Choose training dataset
+    if "cifar" in cfg.TRAIN.DATASET:
         train_dataset = cifar10.CIFAR10Dataset(
             data_path=cfg.TRAIN.DATA_DIR,
             split='train',
@@ -129,7 +127,23 @@ def main():
                     std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
             ]),
             download=True)
+    elif "imagenet" in cfg.TRAIN.DATASET:
+        train_dataset = imagenet.ImageNetDataset(
+            data_path=cfg.TRAIN.DATA_DIR,
+            split='train',
+            transform=transforms.Compose([
+                transforms.RandomResizedCrop(cfg.TRAIN.IMAGE_SIZE),
+                #transforms.CenterCrop(cfg.TRAIN.IMAGE_SIZE),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ]))
+    else:
+        log.error("No TRAIN dataset with name {} found.".format(cfg.TRAIN.DATASET))
 
+    # Now choose the Validation dataset
+    if "cifar" in cfg.TEST.DATASET:
         val_dataset = cifar10.CIFAR10Dataset(
             data_path=cfg.TEST.DATA_DIR,
             split='val',
@@ -143,19 +157,7 @@ def main():
                     std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
             ]),
             download=True)
-    elif args.dataset == 'imagenet':
-        train_dataset = imagenet.ImageNetDataset(
-            data_path=cfg.TRAIN.DATA_DIR,
-            split='train',
-            transform=transforms.Compose([
-                transforms.RandomResizedCrop(cfg.TRAIN.IMAGE_SIZE),
-                #transforms.CenterCrop(cfg.TRAIN.IMAGE_SIZE),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225]),
-            ]))
-
+    elif "imagenet" in cfg.TRAIN.DATASET:
         val_dataset = cifar10.CIFAR10Dataset(
             data_path=cfg.TEST.DATA_DIR,
             split='val',
@@ -166,6 +168,8 @@ def main():
                 transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225]),
             ]))
+    else:
+        log.error("No VAL dataset with name {} found.".format(cfg.TRAIN.DATASET))
 
     log.info(
         "Dataset created:\n\tTRAIN images : {}\n\tVAL images: {}\n\tNUM_CLASSES: {}"
@@ -179,13 +183,13 @@ def main():
                                                batch_size=cfg.TRAIN.BATCH_SIZE)
 
     val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        shuffle=True,
-        pin_memory=True,
-        num_workers=cfg.NUM_WORKERS,
-        drop_last=True,
-        batch_size=cfg.TRAIN.BATCH_SIZE  #TODO: See if this works and update
-    )
+                                                val_dataset,
+                                                shuffle=True,
+                                                pin_memory=True,
+                                                num_workers=cfg.NUM_WORKERS,
+                                                drop_last=True,
+                                                batch_size=cfg.TRAIN.BATCH_SIZE  #TODO: See if this works and update
+                                            )
     '''
     Start Training with specified config.
     '''
