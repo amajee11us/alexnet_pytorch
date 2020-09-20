@@ -30,17 +30,23 @@ class CIFAR10Dataset(Dataset):
             raise Exception("Such split does not exist")
 
         self.data_path = data_path
-        if not os.path.exists(self.data_path):
+        if not os.path.exists(self.data_path) and download == False:
             raise Exception("Data path: {} does not exist for split {}".format(
                 self.data_path, self.split))
-
+        elif download and os.path.exists(self.data_path):
+            #No need to download thus override
+            download = False
         _cifar10_obj = CIFAR10(root=self.data_path,
                                train=True if self.split == "train" else False,
                                transform=self.transform,
                                download=download)
         # store as merged list
-        data = _cifar10_obj.data
-        labels = np.array(_cifar10_obj.targets)
+        if self.split == "train":
+            data = _cifar10_obj.train_data
+            labels = np.array(_cifar10_obj.train_labels)
+        else:
+            data = _cifar10_obj.test_data
+            labels = np.array(_cifar10_obj.test_labels)
         self.data_store = list(zip(data, labels))
 
         # generate random shuffled samples
