@@ -24,10 +24,13 @@ def get_lr(optimizer):
         return param_group['lr']
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth'):
+def save_checkpoint(cfg, state, is_best):
+    file_path = os.path.join(cfg.OUTPUT_DIR, cfg.ARCH + "_" + cfg.EXP_NAME)
+    filename = os.path.join(file_path, "model_" + str(state['epoch']) + ".pth")
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, "model_best.pth")
+        # just create a copy
+        shutil.copyfile(filename, os.path.join(file_path, "model_best.pth"))
 
 
 def get_output_tb_dir(cfg):
@@ -38,14 +41,10 @@ def get_output_tb_dir(cfg):
   (if not None).
   """
     outdir = osp.abspath(
-        osp.join('output', 'tensorboard', cfg.ARCH + "_" + cfg.EXP_NAME))
+        osp.join(cfg.OUTPUT_DIR, cfg.ARCH + "_" + cfg.EXP_NAME, 'tensorboard'))
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     return outdir
-
-
-def get_output_dir():
-    pass
 
 
 def get_target_device(cfg):

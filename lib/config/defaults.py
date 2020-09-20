@@ -22,6 +22,8 @@ __C.ARCH = "alexnet"
 __C.EXP_NAME = "basic_224"
 
 __C.DEVICE = "cpu"
+
+__C.OUTPUT_DIR = "output"
 '''
 Training setting
 '''
