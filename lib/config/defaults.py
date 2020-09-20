@@ -14,7 +14,7 @@ General
 '''
 __C.NUM_WORKERS = 2
 
-__C.GPU = 0
+__C.GPU = [0]
 
 __C.PRINT_FREQUENCY = 10
 

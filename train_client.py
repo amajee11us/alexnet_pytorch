@@ -73,12 +73,7 @@ def parse_args():
                         default=None,
                         type=int,
                         help='seed for initializing training. ')
-    parser.add_argument('--gpu', default=0, type=int, help='GPU id to use.')
-    parser.add_argument('--use-gpu',
-                        dest='use_gpu',
-                        action='store_true',
-                        help='Use GPU (ofcourse it should be available).')
-
+    
     args = parser.parse_args()
     return args
 
@@ -89,9 +84,7 @@ def main():
     log.info("Reading config from file: {}".format(args.config_file))
     cfg_from_file(args.config_file)
     pprint.PrettyPrinter(indent=4).pprint(cfg)
-    '''
-    CUDA/CPU setup. Making a dynamic decision
-    '''
+    # Select appropriate device
     device = get_target_device(cfg)
     log.info(f'Using {device} for execution.')
     
@@ -107,7 +100,7 @@ def main():
     alexnet = alexnet.to(device)
     log.info(alexnet)
     if 'cuda' in device:
-        alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=[cfg.GPU])
+        alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
 
     # TODO: Add code to resume from a checkpoint
     # Create optimizer
