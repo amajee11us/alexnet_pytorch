@@ -1,8 +1,9 @@
 EXP_NAME: "basic_224"
-
+DEVICE: "gpu"
 TRAIN:
   LEARNING_RATE: 0.01
   IMAGE_SIZE: 224
+  DATASET: "imagenet"
   DATA_DIR: '/workspace/dataset/miniimagenet'
   BATCH_SIZE: 128
   NUM_CLASSES: 1000
@@ -11,4 +12,5 @@ TRAIN:
 PRINT_FREQUENCY: 100
 
 TEST:
+  DATASET: "imagenet"
   DATA_DIR: 'data/imagenet'
