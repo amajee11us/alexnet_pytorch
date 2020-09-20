@@ -96,7 +96,7 @@ def main():
     alexnet = model.AlexNet(cfg=cfg)
     alexnet = alexnet.to(device)
     log.info(alexnet)
-    if 'cuda' in device:
+    if 'gpu' in cfg.DEVICE:
         alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
 
     # TODO: Add code to resume from a checkpoint
