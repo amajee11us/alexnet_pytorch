@@ -193,8 +193,6 @@ def main():
     # Train over the dataset
     for epoch in range(cfg.TRAIN.NUM_EPOCHS):
         # adjust_learning_rate(optimizer, epoch, cfg)
-        # step on the learning-rate
-        lr_scheduler.step()
 
         # train one epoch on the target device
         train(train_loader, alexnet, criterion, optimizer, epoch, cfg,
@@ -202,6 +200,9 @@ def main():
 
         # Get the top1 accuracy from the validation set
         acc1 = validate(val_loader, alexnet, criterion, cfg, tbwriter)
+
+        # step on the learning-rate
+        lr_scheduler.step()
 
         check_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
