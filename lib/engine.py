@@ -5,8 +5,6 @@ from .meters import AverageMeter, ProgressMeter, accuracy
 from .utils import get_lr
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
 '''
 Keep track of the steps covered and write to TB
 '''
@@ -121,8 +119,8 @@ def validate(val_loader, model, criterion, cfg, writer=None):
 
             total_val_steps += 1
 
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'.format(top1=top1,
-                                                                    top5=top5))
+        logging.info(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'.format(
+            top1=top1, top5=top5))
 
     return top1.avg
 
@@ -137,4 +135,4 @@ def resume_from_ckpt(ckpt_path, model, optimizer):
     # load optimizer weights
     optimizer.load_state_dict(checkpoint['optimizer'])
 
-    log.info("Loaded checkpoint from : {}".format(ckpt_path))
+    logging.info("Loaded checkpoint from : {}".format(ckpt_path))

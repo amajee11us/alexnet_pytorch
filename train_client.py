@@ -21,9 +21,6 @@ from lib.utils import *
 from lib.config.conf import cfg_from_file
 from lib.config.conf import __C as cfg
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -62,9 +59,16 @@ def parse_args():
 def main():
     args = parse_args()
     # Get configuration
-    log.info("Reading config from file: {}".format(args.config_file))
     cfg_from_file(args.config_file)
-    pprint.PrettyPrinter(indent=4).pprint(cfg)
+    # Define the output path
+    cfg.OUTPUT_DIR = os.path.join(cfg.OUTPUT_DIR,
+                                  cfg.ARCH + "_" + cfg.EXP_NAME)
+    #define logger
+    log = Logger(cfg)
+
+    log.info("Reading config from file: {}".format(args.config_file))
+
+    log.info(pprint.PrettyPrinter(indent=4).pprint(cfg))
     # Select appropriate device
     device = get_target_device(cfg)
     log.info(f'Using {device} for execution.')
@@ -93,7 +97,6 @@ def main():
     Resume from a checkpoint
     pass the model and the optimizer and load the stuff
     '''
-    print(args.resume)
     if not args.resume == None:
         resume_from_ckpt(args.resume, alexnet, optimizer)
     '''

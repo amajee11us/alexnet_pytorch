@@ -1,5 +1,6 @@
 import torch
 import shutil
+import logging
 
 
 class AverageMeter(object):
@@ -32,7 +33,7 @@ class ProgressMeter(object):
     def print(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+        logging.info('\t'.join(entries))
 
     @staticmethod
     def _get_batch_fmtstr(num_batches):

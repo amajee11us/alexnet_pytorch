@@ -8,8 +8,27 @@ import os
 import os.path as osp
 import logging
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
+
+def Logger(cfg):
+    # set up logging to file
+    logging.basicConfig(
+        filename=os.path.join(cfg.OUTPUT_DIR, 'log.log'),
+        filemode='a',
+        level=logging.INFO,
+        format=
+        '[%(asctime)s]{%(filename)s:%(lineno)d}%(levelname)s- %(message)s',
+        datefmt='%H:%M:%S')
+    # set up logging to console
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG)
+    # set a format which is simpler for console use
+    formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+    console.setFormatter(formatter)
+    # add the handler to the root logger
+    logging.getLogger('').addHandler(console)
+    logger = logging.getLogger(__name__)
+
+    return logger
 
 
 def adjust_learning_rate(optimizer, epoch, cfg):
@@ -25,7 +44,7 @@ def get_lr(optimizer):
 
 
 def save_checkpoint(cfg, state, is_best):
-    file_path = os.path.join(cfg.OUTPUT_DIR, cfg.ARCH + "_" + cfg.EXP_NAME)
+    file_path = cfg.OUTPUT_DIR
     filename = os.path.join(file_path, "model_" + str(state['epoch']) + ".pth")
     torch.save(state, filename)
     if is_best:
@@ -40,8 +59,7 @@ def get_output_tb_dir(cfg):
   A canonical path is built using the name from an imdb and a network
   (if not None).
   """
-    outdir = osp.abspath(
-        osp.join(cfg.OUTPUT_DIR, cfg.ARCH + "_" + cfg.EXP_NAME, 'tensorboard'))
+    outdir = osp.abspath(osp.join(cfg.OUTPUT_DIR, 'tensorboard'))
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     return outdir
@@ -49,12 +67,13 @@ def get_output_tb_dir(cfg):
 
 def get_target_device(cfg):
     '''
-  Returns a device to dump all workings into.
-  '''
+    Returns a device to dump all workings into.
+    '''
     device = torch.device("cpu")
     if "gpu" in cfg.DEVICE:
         if not torch.cuda.is_available():
-            log.warning(f'CUDA is NOT available. Fall-back initiated to CPU.')
+            logging.warning(
+                f'CUDA is NOT available. Fall-back initiated to CPU.')
             # fallback already initialized so no need to do it again
         else:
             # Here we have CUDA
