@@ -1,0 +1,182 @@
+# Derived from implementation in PyTorch by jacobgil
+# Link to source repo: https://github.com/jacobgil/pytorch-grad-cam
+# import sys
+# sys.path.insert(0, '../dataset')
+import logging
+import argparse
+
+import cv2
+import torch
+import numpy as np
+from torchvision import transforms
+from torch.autograd import Function
+
+from .model import AlexNet
+from .utils import get_target_device
+from .engine import resume_from_ckpt
+from .config.conf import cfg_from_file
+from .config.conf import __C as cfg
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+device = get_target_device(cfg=cfg)
+
+class FeatureExtractor():
+    """ Class for extracting activations and
+    registering gradients from targetted intermediate layers """
+    def __init__(self, model, target_layers):
+        self.model = model
+        self.target_layers = target_layers
+        self.gradients = []
+
+    def save_gradient(self, grad):
+        self.gradients.append(grad)
+
+    def __call__(self, x):
+        outputs = []
+        self.gradients = []
+        for name, module in self.model._modules.items():
+            x = module(x)
+            if name in self.target_layers:
+                x.register_hook(self.save_gradient)
+                outputs += [x]
+        return outputs, x
+
+
+class ModelOutputs():
+    """ Class for making a forward pass, and getting:
+    1. The network output.
+    2. Activations from intermeddiate targetted layers.
+    3. Gradients from intermeddiate targetted layers. """
+    def __init__(self, model, feature_module, target_layers):
+        self.model = model
+        self.feature_module = feature_module
+        self.feature_extractor = FeatureExtractor(self.feature_module,
+                                                  target_layers)
+
+    def get_gradients(self):
+        return self.feature_extractor.gradients
+
+    def __call__(self, x):
+        target_activations = []
+        for name, module in self.model._modules.items():
+            if module == self.feature_module:
+                target_activations, x = self.feature_extractor(x)
+            elif "avgpool" in name.lower():
+                x = module(x)
+                x = x.view(x.size(0), -1)
+            else:
+                x = module(x)
+
+        return target_activations, x
+
+class GradCam:
+    def __init__(self, model, feature_module, target_layer_names):
+        self.model = model
+        self.feature_module = feature_module
+        self.model.eval()
+        self.model = model.to(device)
+
+        self.extractor = ModelOutputs(self.model, self.feature_module,
+                                      target_layer_names)
+
+    def forward(self, input_img):
+        return self.model(input_img)
+
+    def __call__(self, input_img, index=None):
+
+        features, output = self.extractor(input_img.to(device))
+
+        if index == None:
+            index = np.argmax(output.data.numpy())
+
+        one_hot = np.zeros((1, output.size()[-1]), dtype=np.float32)
+        one_hot[0][index] = 1
+        one_hot = torch.from_numpy(one_hot).requires_grad_(True)
+        one_hot = torch.sum(one_hot.to(device) * output)
+
+        self.feature_module.zero_grad()
+        self.model.zero_grad()
+        one_hot.backward(retain_graph=True)
+
+        # _ = self.extractor.get_gradients()
+        grads_val = self.extractor.get_gradients()[-1].data.numpy()
+
+        target = features[-1]
+        target = target.data.numpy()[0, :]
+
+        weights = np.mean(grads_val, axis=(2, 3))[0, :]
+        cam = np.zeros(target.shape[1:], dtype=np.float32)
+
+        for i, w in enumerate(weights):
+            cam += w * target[i, :, :]
+
+        cam = np.maximum(cam, 0)
+        cam = cv2.resize(cam, input_img.shape[2:])
+        cam = cam - np.min(cam)
+        cam = cam / np.max(cam)
+        return cam
+
+
+class GuidedBackpropReLU(Function):
+    @staticmethod
+    def forward(self, input_img):
+        positive_mask = (input_img > 0).type_as(input_img)
+        output = torch.addcmul(
+            torch.zeros(input_img.size()).type_as(input_img), input_img, positive_mask)
+        self.save_for_backward(input_img, output)
+        return output
+
+    @staticmethod
+    def backward(self, grad_output):
+        input_img, output = self.saved_tensors
+        grad_input = None
+
+        positive_mask_1 = (input_img > 0).type_as(grad_output)
+        positive_mask_2 = (grad_output > 0).type_as(grad_output)
+        grad_input = torch.addcmul(
+            torch.zeros(input_img.size()).type_as(input_img),
+            torch.addcmul(
+                torch.zeros(input_img.size()).type_as(input_img), grad_output,
+                positive_mask_1), positive_mask_2)
+
+        return grad_input
+
+
+class GuidedBackpropReLUModel:
+    def __init__(self, model):
+        self.model = model
+        self.model.eval()
+        self.model = model.to(device)
+
+        def recursive_relu_apply(module_top):
+            for idx, module in module_top._modules.items():
+                recursive_relu_apply(module)
+                if module.__class__.__name__ == 'ReLU':
+                    module_top._modules[idx] = GuidedBackpropReLU.apply
+
+        # replace ReLU with GuidedBackpropReLU
+        recursive_relu_apply(self.model)
+
+    def forward(self, input_img):
+        return self.model(input_img)
+
+    def __call__(self, input_img, index=None):
+        output = self.forward(input_img.to(device))
+
+        if index == None:
+            index = np.argmax(output.data.numpy())
+
+        one_hot = np.zeros((1, output.size()[-1]), dtype=np.float32)
+        one_hot[0][index] = 1
+        one_hot = torch.from_numpy(one_hot).requires_grad_(True)
+        one_hot = torch.sum(one_hot.to(device) * output)
+
+        # self.model.features.zero_grad()
+        # self.model.classifier.zero_grad()
+        one_hot.backward(retain_graph=True)
+
+        output = input_img.grad.data.numpy()
+        output = output[0, :, :, :]
+
+        return output
