@@ -4,3 +4,4 @@ output/
 .vscode
 .ipynb_checkpoints
 *.pth
+data/
