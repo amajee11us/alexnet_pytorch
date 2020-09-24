@@ -87,35 +87,53 @@ class GradCam:
 
         features, output = self.extractor(input_img.to(device))
 
+        # Evaluate N
+        n_samples = output.shape[0]
+
         if index == None:
-            index = np.argmax(output.data.numpy())
+            index = torch.argmax(output, dim=1)
 
-        one_hot = np.zeros((1, output.size()[-1]), dtype=np.float32)
-        one_hot[0][index] = 1
-        one_hot = torch.from_numpy(one_hot).requires_grad_(True)
-        one_hot = torch.sum(one_hot.to(device) * output)
+        # One_hot of size N x num_classes
+        one_hot = torch.zeros(output.size(), dtype=torch.float32)
+        for sample_id, pred in enumerate(index):
+            one_hot[sample_id][pred] = 1
 
+        one_hot = one_hot.requires_grad_(True)
+        one_hot = torch.sum(one_hot.to(device) * output, dim=1)
+
+        # Compute gradients
         self.feature_module.zero_grad()
         self.model.zero_grad()
-        one_hot.backward(retain_graph=True)
+        one_hot.backward(gradient=torch.ones([n_samples]), retain_graph=True)
+        grads_val = self.extractor.get_gradients()[-1]
 
-        # _ = self.extractor.get_gradients()
-        grads_val = self.extractor.get_gradients()[-1].data.numpy()
-
+        # features[-1] OR target is (n_samples, C, H, W) of avgpool
         target = features[-1]
-        target = target.data.numpy()[0, :]
+        weights = torch.mean(grads_val, dim=(2, 3))
 
-        weights = np.mean(grads_val, axis=(2, 3))[0, :]
-        cam = np.zeros(target.shape[1:], dtype=np.float32)
+        # needed cam of size (N, H, W) of the avgpool layer
+        H, W = target.shape[2:]
+        cams = torch.zeros(n_samples, H, W, dtype=torch.float32)
+        for n in range(n_samples):
+            for i, w in enumerate(weights[n]):
+                cams[n] += w * target[n, i, :, :]
 
-        for i, w in enumerate(weights):
-            cam += w * target[i, :, :]
+        # apply ReLU
+        torch.nn.ReLU(inplace=True)(cams)
 
-        cam = np.maximum(cam, 0)
-        cam = cv2.resize(cam, input_img.shape[2:])
-        cam = cam - np.min(cam)
-        cam = cam / np.max(cam)
-        return cam
+        # Convert to npy arrays as need to resize
+        cams = cams.data.numpy()
+
+        # Resize each cam to input_img shape
+        cams_batch = []
+        for cam in cams:
+            cam = cv2.resize(cam, input_img.shape[2:])
+            cam = cam - np.min(cam)
+            cam = cam / np.max(cam)
+            cams_batch.append(cam)
+
+        cams_batch = np.array(cams_batch)
+        return cams_batch
 
 
 class GuidedBackpropReLU(Function):

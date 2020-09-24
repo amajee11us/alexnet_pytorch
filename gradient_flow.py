@@ -2,8 +2,10 @@ import os
 import logging
 
 import cv2
+import shutil
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import normalize
 import torchvision.transforms as transforms
 
@@ -45,90 +47,70 @@ class ImUtils(object):
         return tensor
 
     @staticmethod
-    def swap_channels(tensor):
-        """Swaps channels of a given 3D/4D tensor
-
+    def save_as_fig(x_batch, y_batch, mask_batch, classes):
+        """Save all as a plot
+        TODO: Fill this up
         Args:
-            tensor (torch.Tensor): Tensor
-
-        Returns:
-            torch.Tensor: Tensor
+            x_batch ([type]): [description]
+            y_batch ([type]): [description]
+            mask_batch ([type]): [description]
+            classes ([type]): [description]
         """
-        if np.argmin(tensor.shape) != len(tensor.shape) - 1:
-            if len(tensor.shape) == 3:
-                return tensor.permute(1, 2, 0)
-            elif len(tensor.shape) == 4:
-                return tensor.permute(0, 2, 3, 1)
-            else:
-                raise Exception(f'Unsupported Tensor shape: {tensor.shape}')
-        else:
-            log.warning(f'Swap not necessary: {tensor.shape}')
-        return tensor
+        try:
+            nrows = 2
+            ncols = x_batch.shape[0]
+            figsize = (ncols, nrows)
+            f, ax = plt.subplots(nrows, ncols, figsize=figsize)
+            col = 0
+            for x, y, m in zip(x_batch, y_batch, mask_batch):
+                heatmap = cv2.applyColorMap(np.uint8(255 * m),
+                                            cv2.COLORMAP_JET)
+                heatmap = np.float32(heatmap) / 255
+                cam = heatmap + np.float32(x)
+                cam = np.uint8(np.clip((cam / np.max(cam)) * 255, 0, 255))
 
-    @staticmethod
-    def overlay(img, mask):
-        """Overlay the mask on img
+                ax[0][col].set_title(classes[y.data.numpy().item()])
+                ax[0][col].imshow(x)
+                ax[0][col].set_xticks([])
+                ax[0][col].set_yticks([])
 
-        Args:
-            img (np.array/torch.Tensor): Values between 0-255.
-            mask (np.array/torch.Tensor): Values between 0-1. This will be overlaid as 'JET' colormap
-        Returns:
-            cam (np.array): Overlaid image, pixels between 0-255
-        """
-        if isinstance(img, torch.Tensor):
-            img = img.data.numpy()
-        if isinstance(mask, torch.Tensor):
-            mask = mask.data.numpy()
-        heatmap = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
-        heatmap = np.float32(heatmap) / 255
-        cam = heatmap + np.float32(img / 255)
-        cam = np.clip((cam / np.max(cam)) * 255, 0, 255)
-        return cam
+                ax[1][col].imshow(cv2.cvtColor(cam, cv2.COLOR_BGR2RGB))
+                ax[1][col].set_xticks([])
+                ax[1][col].set_yticks([])
 
-    @staticmethod
-    def save_image(img, filename):
-        """Saves image to output/gradients directory
-
-        Args:
-            img (np.array): Pixel values 0-255
-        """
-        filepath = os.path.join('output', 'gradients', filename)
-        if cv2.imwrite(filepath, img):
-            log.info(f'Image saved at {filepath}.')
-
-    @staticmethod
-    def normalize(x):
-        """Normalize array
-
-        Args:
-            x (np.array): numpy array, typically from any intermediate outputs
-
-        Returns:
-            np.array: normalized array, 0 mean, 0.1 std
-        """
-        x = x - np.mean(x)
-        x = x / (np.std(x) + 1e-6)
-        x *= 0.1
-        x += 0.5
-        x = np.clip(x, 0, 1)
-        # x = np.uint8(x * 255)
-        return x
+                col += 1
+            f.tight_layout()
+            plt.savefig(
+                os.path.join(DUMP_DIR, 'gradcam_output.png'),
+                bbox_inches='tight',
+                pad_inches=0,
+            )
+            log.info('Saved figure.')
+        except Exception as e:
+            log.error(f'Exception in save: {e}')
 
 
 if __name__ == '__main__':
     '''
-    Load a pretrained Model
+    Config/Output setup
     '''
     cfg_from_file('configs/alexnet_32x32.yaml')
     device = get_target_device(cfg=cfg)
-    # create model and load to device
+    DUMP_DIR = os.path.join(cfg.OUTPUT_DIR, 'gradients')
+    if os.path.exists(DUMP_DIR):
+        shutil.rmtree(DUMP_DIR)
+    os.mkdir(DUMP_DIR)
+
+    np.random.seed(0)
+    torch.manual_seed(0)
+    '''
+    Load a pretrained Model
+    '''
     alexnet = model.AlexNet(cfg=cfg)
     alexnet = alexnet.to(device)
     if 'gpu' in cfg.DEVICE:
         alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
-    # Create optimizer
     optimizer = torch.optim.Adam(params=alexnet.parameters(), lr=0.0001)
-    # Load model from checkpoint
     resume_from_ckpt('output/alexnet_basic_cifar_32/model_best.pth', alexnet,
                      optimizer)
     '''
@@ -147,52 +129,48 @@ if __name__ == '__main__':
                                           'train',
                                           transform=transformations)
     train_loader = torch.utils.data.DataLoader(dataset=cifar10_data,
-                                               batch_size=1,
+                                               batch_size=16,
                                                shuffle=True)
     '''
     Load a datapoint
     '''
-    # Get a sample from the loader
-    img, label = next(iter(train_loader))
-
     # TODO: Send this to CIFAR class, it is helpful there too
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse',
                'ship', 'truck')
-    log.info(f'{img.shape}, {classes[label.data.numpy().item()]}')
-    input_img = ImUtils.denorm(img,
-                               mean=(0.491, 0.482, 0.446),
-                               std=(0.247, 0.243, 0.261))[0].data.numpy() * 255
-    input_img = input_img.transpose((1, 2, 0))
-    input_img = cv2.cvtColor(
-        input_img, cv2.COLOR_BGR2RGB)  # cv2 uses RGB format, rest use BGR
-    ImUtils.save_image(input_img, 'input_image.png')
-
+    x_batch, y_batch = next(iter(train_loader))
     '''
     Part 1. GradCam
     '''
     log.info('GradCam')
-    grad_cam = GradCam(model=alexnet.module,
-                        feature_module=alexnet.module.conv_feat,
-                        target_layer_names=["12"])
-    # If index=None, returns the map for the highest scoring category.
-    # Otherwise, targets the requested index.
-    mask = grad_cam(img, index=None)  # Mask is (IMG_SHAPE, IMG_SHAPE)
-    overlaid_mask = ImUtils.overlay(input_img, mask)  # Overlays both arrays with colormap
-    ImUtils.save_image(overlaid_mask, 'gradcam_overlay.png')
+    gradcam = GradCam(model=alexnet.module,
+                      feature_module=alexnet.module.conv_feat,
+                      target_layer_names=["12"])
+    # Evaluate CAMs over batch
+    mask_batch = gradcam(x_batch, index=None)
+    log.info(f'INPUT: {x_batch.shape}, MASK: {mask_batch.shape}')
 
+    # Denormalize each image. This is needed to save images ONLY.
+    for each in x_batch:
+        ImUtils.denorm(each,
+                       mean=[0.491, 0.482, 0.446],
+                       std=[0.247, 0.243, 0.261])
+    x_batch_npy = x_batch.data.numpy().transpose((0, 2, 3, 1))
+    # Save plots in a figure.
+    ImUtils.save_as_fig(x_batch_npy, y_batch, mask_batch, classes)
+    exit(0)
     '''
-    Part 2. Guided Backpropagation + GradCam
+    Part 2. Guided Backpropagation + GradCam [NOT IMPLEMENTED IN BATCH]
     '''
-    log.info('Guided Backprop + GradCam')
-    gb_model = GuidedBackpropReLUModel(model=alexnet.module)
-    # TODO: Figure out why explicit require_grad is needed
-    # If index=None, returns the map for the highest scoring category.
-    # Otherwise, targets the requested index.
-    gb = gb_model(img.requires_grad_(True), index=None)  # This is gb = (3, IMG_SHAPE, IMG_SHAPE)
-    gb = gb.transpose((1, 2, 0))  # Convert gb to  (IMG_SHAPE, IMG_SHAPE, 3)
-    cam_mask = cv2.merge([mask, mask, mask])  # Converts MASK to (IMG_SHAPE, IMG_SHAPE, 3)
-    gb = np.uint8(ImUtils.normalize(gb) * 255)
-    cam_gb = np.uint8(ImUtils.normalize(cam_mask * gb) * 255)
-    ImUtils.save_image(gb, 'gb.png')
-    ImUtils.save_image(cam_gb, 'cam_gb.png')
-    log.info('All done!')
+    # log.info('Guided Backprop + GradCam')
+    # gb_model = GuidedBackpropReLUModel(model=alexnet.module)
+    # # TODO: Figure out why explicit require_grad is needed
+    # # If index=None, returns the map for the highest scoring category.
+    # # Otherwise, targets the requested index.
+    # gb = gb_model(img.requires_grad_(True), index=None)  # This is gb = (3, IMG_SHAPE, IMG_SHAPE)
+    # gb = gb.transpose((1, 2, 0))  # Convert gb to  (IMG_SHAPE, IMG_SHAPE, 3)
+    # cam_mask = cv2.merge([mask, mask, mask])  # Converts MASK to (IMG_SHAPE, IMG_SHAPE, 3)
+    # gb = np.uint8(ImUtils.normalize(gb) * 255)
+    # cam_gb = np.uint8(ImUtils.normalize(cam_mask * gb) * 255)
+    # ImUtils.save_image(gb, 'gb.png')
+    # ImUtils.save_image(cam_gb, 'cam_gb.png')
+    # log.info('All done!')
