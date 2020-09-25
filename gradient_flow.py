@@ -23,43 +23,42 @@ log = logging.getLogger(__name__)
 
 class ImUtils(object):
     @staticmethod
-    def denorm(tensor, mean, std):
+    def denorm(img_tensor, mean, std):
         """
         Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be denormalized.
+            tensor (Tensor): Tensor image of size (N, C, H, W) to be denormalized.
         Returns:
-            Tensor: DeNormalized image.
+            new Tensor: DeNormalized image.
         """
-        for t, m, s in zip(tensor, mean, std):
-            t.mul_(s).add_(m)
+        tensor = img_tensor.clone()
+        assert len(mean) == len(std)
+        if len(tensor.shape) == 4:
+            # Across N
+            for sample in tensor:
+                # Across channel
+                n_c = sample.shape[0]
+                if n_c != len(mean):
+                    log.error(sample.shape)
+                    raise Exception(f'Tensor has {n_c} channels, but mean/std has {len(mean)}')
+                for t, m, s in zip(sample, mean, std):
+                    t.mul_(s).add_(m)
         return tensor
 
     @staticmethod
-    def norm(tensor):
-        """
-        Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
-        Returns:
-            Tensor: Normalized image.
-        """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.sub_(m).div_(s)
-        return tensor
+    def save_as_fig(x_batch, y_batch, mask_batch, classes=None):
+        """Creates overlay with x_batch and mask_batch.
+        Plots this into a figure, which is saved as a PNG file.
 
-    @staticmethod
-    def save_as_fig(x_batch, y_batch, mask_batch, classes):
-        """Save all as a plot
-        TODO: Fill this up
         Args:
-            x_batch ([type]): [description]
-            y_batch ([type]): [description]
-            mask_batch ([type]): [description]
-            classes ([type]): [description]
+            x_batch (np.array): Array NCHW
+            y_batch (np.array): Array [N]
+            mask_batch (np.array): Array NHW
+            classes (np.array): Tuple of strings corresponding to labels (optional)
         """
         try:
             nrows = 2
             ncols = x_batch.shape[0]
-            figsize = (ncols, nrows)
+            figsize = (ncols, nrows) # (width, height)
             f, ax = plt.subplots(nrows, ncols, figsize=figsize)
             col = 0
             for x, y, m in zip(x_batch, y_batch, mask_batch):
@@ -69,7 +68,7 @@ class ImUtils(object):
                 cam = heatmap + np.float32(x)
                 cam = np.uint8(np.clip((cam / np.max(cam)) * 255, 0, 255))
 
-                ax[0][col].set_title(classes[y.data.numpy().item()])
+                ax[0][col].set_title(classes[y.item()]) if classes is not None else ax[0][col].set_title(y)
                 ax[0][col].imshow(x)
                 ax[0][col].set_xticks([])
                 ax[0][col].set_yticks([])
@@ -129,7 +128,7 @@ if __name__ == '__main__':
                                           'train',
                                           transform=transformations)
     train_loader = torch.utils.data.DataLoader(dataset=cifar10_data,
-                                               batch_size=16,
+                                               batch_size=8,
                                                shuffle=True)
     '''
     Load a datapoint
@@ -145,18 +144,18 @@ if __name__ == '__main__':
     gradcam = GradCam(model=alexnet.module,
                       feature_module=alexnet.module.conv_feat,
                       target_layer_names=["12"])
-    # Evaluate CAMs over batch
-    mask_batch = gradcam(x_batch, index=None)
-    log.info(f'INPUT: {x_batch.shape}, MASK: {mask_batch.shape}')
+    # Evaluate CAMs over batch and convert to npy arrays. Mask default is npy array
+    mask_batch_npy = gradcam(x_batch, index=None)
 
     # Denormalize each image. This is needed to save images ONLY.
-    for each in x_batch:
-        ImUtils.denorm(each,
-                       mean=[0.491, 0.482, 0.446],
-                       std=[0.247, 0.243, 0.261])
-    x_batch_npy = x_batch.data.numpy().transpose((0, 2, 3, 1))
+    denormed_x_batch = ImUtils.denorm(x_batch, mean=[0.491, 0.482, 0.446], std=[0.247, 0.243, 0.261])
+    x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
+    y_batch_npy = y_batch.data.numpy()
+
+    log.info(f'INPUT: {x_batch_npy.shape}, MASK: {mask_batch_npy.shape}')
+
     # Save plots in a figure.
-    ImUtils.save_as_fig(x_batch_npy, y_batch, mask_batch, classes)
+    ImUtils.save_as_fig(x_batch_npy, y_batch_npy, mask_batch_npy, classes)
     exit(0)
     '''
     Part 2. Guided Backpropagation + GradCam [NOT IMPLEMENTED IN BATCH]
