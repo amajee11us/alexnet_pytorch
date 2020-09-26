@@ -16,6 +16,7 @@ from dataset import imagenet
 from dataset import cifar10
 
 from lib.models import factory
+from lib.solver import build_optimizer, build_lr_scheduler
 from lib.engine import train, validate, resume_from_ckpt
 from lib.utils import *
 from lib.config.conf import cfg_from_file
@@ -82,14 +83,11 @@ def main():
     # create model and load to device
     alexnet = factory.build_model(cfg)
     log.info(alexnet)
-    if 'gpu' in cfg.DEVICE:
-        alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
 
     # Create optimizer
-    optimizer = torch.optim.Adam(params=alexnet.parameters(), lr=0.0001)
+    optimizer = build_optimizer(cfg, alexnet)
     # Create an LR scheduler, Multiply rate by 0.1 every LR_STEP
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(
-        optimizer, step_size=cfg.TRAIN.LR_DECAY_STEP, gamma=cfg.TRAIN.GAMMA)
+    lr_scheduler = build_lr_scheduler(cfg, optimizer)
     # Define loss criterion
     criterion = torch.nn.CrossEntropyLoss().to(device)
     '''
