@@ -17,6 +17,7 @@ from dataset import cifar10
 
 from lib.models import factory
 from lib.solver import build_optimizer, build_lr_scheduler
+from lib.dataset_factory import build_dataset
 from lib.engine import train, validate, resume_from_ckpt
 from lib.utils import *
 from lib.config.conf import cfg_from_file
@@ -99,91 +100,9 @@ def main():
     '''
     Load and prepare datasets
     Supported CIFAR10/Imagenet.
-    TODO: MOVE ALL THIS TO A FACTORY CLASS
     '''
-    # First Choose training dataset
-    if "cifar" in cfg.TRAIN.DATASET:
-        train_dataset = cifar10.CIFAR10Dataset(
-            data_path=cfg.TRAIN.DATA_DIR,
-            split='train',
-            transform=transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize(256),  # CIFAR has 32x32 images
-                transforms.RandomCrop(
-                    cfg.TRAIN.IMAGE_SIZE),  # square image transform
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                    std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-            ]),
-            download=True)
-    elif "imagenet" in cfg.TRAIN.DATASET:
-        train_dataset = imagenet.ImageNetDataset(
-            data_path=cfg.TRAIN.DATA_DIR,
-            split='train',
-            transform=transforms.Compose([
-                transforms.RandomResizedCrop(cfg.TRAIN.IMAGE_SIZE),
-                #transforms.CenterCrop(cfg.TRAIN.IMAGE_SIZE),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225]),
-            ]))
-    else:
-        log.error("No TRAIN dataset with name {} found.".format(
-            cfg.TRAIN.DATASET))
-
-    # Now choose the Validation dataset
-    if "cifar" in cfg.TEST.DATASET:
-        val_dataset = cifar10.CIFAR10Dataset(
-            data_path=cfg.TEST.DATA_DIR,
-            split='val',
-            transform=transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.Resize(256),  # CIFAR has 32x32 images
-                transforms.RandomCrop(
-                    cfg.TRAIN.IMAGE_SIZE),  # square image transform
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
-                    std=[x / 255.0 for x in [63.0, 62.1, 66.7]])
-            ]),
-            download=True)
-    elif "imagenet" in cfg.TRAIN.DATASET:
-        val_dataset = cifar10.CIFAR10Dataset(
-            data_path=cfg.TEST.DATA_DIR,
-            split='val',
-            transform=transforms.Compose([
-                # transforms.CenterCrop(cfg.TRAIN.IMAGE_SIZE),
-                # transforms.Resize(cfg.TRAIN.IMAGE_SIZE, interpolation=Image.BICUBIC),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225]),
-            ]))
-    else:
-        log.error("No VAL dataset with name {} found.".format(
-            cfg.TRAIN.DATASET))
-
-    log.info(
-        "Dataset created:\n\tTRAIN images : {}\n\tVAL images: {}\n\tNUM_CLASSES: {}"
-        .format(len(train_dataset), len(val_dataset), cfg.TRAIN.NUM_CLASSES))
-
-    train_loader = torch.utils.data.DataLoader(train_dataset,
-                                               shuffle=True,
-                                               pin_memory=True,
-                                               num_workers=cfg.NUM_WORKERS,
-                                               drop_last=True,
-                                               batch_size=cfg.TRAIN.BATCH_SIZE)
-
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        shuffle=True,
-        pin_memory=True,
-        num_workers=cfg.NUM_WORKERS,
-        drop_last=True,
-        batch_size=cfg.TRAIN.BATCH_SIZE  #TODO: See if this works and update
-    )
+    train_loader = build_dataset(cfg, split="train")
+    val_loader = build_dataset(cfg, split="val")
     '''
     Start Training with specified config.
     '''
