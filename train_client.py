@@ -15,7 +15,7 @@ from dataset import imagenet
 # from dataset import mini_imagenet
 from dataset import cifar10
 
-from lib import model
+from lib.models import factory
 from lib.engine import train, validate, resume_from_ckpt
 from lib.utils import *
 from lib.config.conf import cfg_from_file
@@ -80,8 +80,7 @@ def main():
     log.info("Using Seed : {}".format(seed))
 
     # create model and load to device
-    alexnet = model.AlexNet(cfg=cfg)
-    alexnet = alexnet.to(device)
+    alexnet = factory.build_model(cfg)
     log.info(alexnet)
     if 'gpu' in cfg.DEVICE:
         alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
