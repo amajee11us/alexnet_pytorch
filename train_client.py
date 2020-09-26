@@ -1,12 +1,8 @@
 import torch
 import logging
-import numpy as np
-import matplotlib
 from tensorboardX import SummaryWriter
-import torchvision.transforms as transforms
-from PIL import Image
 
-import os, sys
+import os
 import argparse
 import pprint
 
@@ -15,6 +11,7 @@ from dataset import imagenet
 # from dataset import mini_imagenet
 from dataset import cifar10
 
+# library imports
 from lib.models import factory
 from lib.solver import build_optimizer, build_lr_scheduler
 from lib.dataset_factory import build_dataset
@@ -34,21 +31,11 @@ def parse_args():
                         dest='config_file',
                         default='configs/alexnet_224x224.yaml',
                         help='model architecture (default: alexnet)')
-    parser.add_argument('-j',
-                        '--workers',
-                        default=4,
-                        type=int,
-                        metavar='N',
-                        help='number of data loading workers (default: 4)')
     parser.add_argument('--resume',
                         default=None,
                         type=str,
                         metavar='PATH',
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--pretrained',
-                        dest='pretrained',
-                        action='store_true',
-                        help='use pre-trained model')
     parser.add_argument('--seed',
                         default=None,
                         type=int,
@@ -62,9 +49,8 @@ def main():
     args = parse_args()
     # Get configuration
     cfg_from_file(args.config_file)
-    # Define the output path
-    cfg.OUTPUT_DIR = os.path.join(cfg.OUTPUT_DIR,
-                                  cfg.ARCH + "_" + cfg.EXP_NAME)
+    cfg.OUTPUT_DIR = get_output_ckpt_dir(cfg)
+
     #define logger
     log = Logger(cfg)
 
@@ -78,7 +64,10 @@ def main():
     Model/Optimizer setup
     '''
     tbwriter = SummaryWriter(log_dir=get_output_tb_dir(cfg))
-    seed = torch.initial_seed()
+    if args.seed is None:
+        seed = torch.initial_seed()
+    else:
+        seed = torch.manual_seed(args.seed)
     log.info("Using Seed : {}".format(seed))
 
     # create model and load to device
