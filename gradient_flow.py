@@ -39,48 +39,69 @@ class ImUtils(object):
                 n_c = sample.shape[0]
                 if n_c != len(mean):
                     log.error(sample.shape)
-                    raise Exception(f'Tensor has {n_c} channels, but mean/std has {len(mean)}')
+                    raise Exception(
+                        f'Tensor has {n_c} channels, but mean/std has {len(mean)}'
+                    )
                 for t, m, s in zip(sample, mean, std):
                     t.mul_(s).add_(m)
         return tensor
 
     @staticmethod
-    def save_as_fig(x_batch, y_batch, mask_batch, classes=None):
+    def save_as_fig(x_batch,
+                    y_batch,
+                    features_batch,
+                    classes=None,
+                    figname=None):
         """Creates overlay with x_batch and mask_batch.
         Plots this into a figure, which is saved as a PNG file.
 
         Args:
             x_batch (np.array): Array NCHW
             y_batch (np.array): Array [N]
-            mask_batch (np.array): Array NHW
+            features_batch (np.array): Array NHW, feature maps of each image in x_batch
             classes (np.array): Tuple of strings corresponding to labels (optional)
         """
         try:
             nrows = 2
             ncols = x_batch.shape[0]
-            figsize = (ncols, nrows) # (width, height)
-            f, ax = plt.subplots(nrows, ncols, figsize=figsize)
+            figsize = (ncols, nrows)  # (width, height)
+            fig, ax = plt.subplots(nrows, ncols, figsize=figsize)
             col = 0
-            for x, y, m in zip(x_batch, y_batch, mask_batch):
-                heatmap = cv2.applyColorMap(np.uint8(255 * m),
-                                            cv2.COLORMAP_JET)
-                heatmap = np.float32(heatmap) / 255
-                cam = heatmap + np.float32(x)
-                cam = np.uint8(np.clip((cam / np.max(cam)) * 255, 0, 255))
+            for x, y, f in zip(x_batch, y_batch, features_batch):
+                # Apply colormap if mask is single channel
+                if len(f.shape) == 2:
+                    # remove the alpha channel from RGBA
+                    f = plt.cm.jet(f)[..., :3]
+                    # overlay and normalize
+                    f = f + np.float32(x)
+                    f = np.clip(f / np.max(f), 0, 1)
 
-                ax[0][col].set_title(classes[y.item()]) if classes is not None else ax[0][col].set_title(y)
+                elif len(f.shape) == 3:
+                    # normalize and clip
+                    f -= np.mean(f)
+                    f /= (np.std(f) + 1e-6)
+                    f *= 0.1
+                    f += 0.5
+                    f = np.clip(f, 0, 1)
+
+                f = np.uint8(np.clip(f * 255, 0, 255))
+
+                ax[0][col].set_title(classes[y.item(
+                )]) if classes is not None else ax[0][col].set_title(y)
                 ax[0][col].imshow(x)
                 ax[0][col].set_xticks([])
                 ax[0][col].set_yticks([])
 
-                ax[1][col].imshow(cv2.cvtColor(cam, cv2.COLOR_BGR2RGB))
+                ax[1][col].imshow(f)
                 ax[1][col].set_xticks([])
                 ax[1][col].set_yticks([])
 
                 col += 1
-            f.tight_layout()
+            fig.tight_layout()
             plt.savefig(
-                os.path.join(DUMP_DIR, 'gradcam_output.png'),
+                os.path.join(
+                    DUMP_DIR,
+                    'saved_figure.png' if figname is None else figname),
                 bbox_inches='tight',
                 pad_inches=0,
             )
@@ -137,6 +158,7 @@ if __name__ == '__main__':
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse',
                'ship', 'truck')
     x_batch, y_batch = next(iter(train_loader))
+
     '''
     Part 1. GradCam
     '''
@@ -145,31 +167,53 @@ if __name__ == '__main__':
                       feature_module=alexnet.module.conv_feat,
                       target_layer_names=["12"])
     # Evaluate CAMs over batch and convert to npy arrays. Mask default is npy array
-    mask_batch_npy = gradcam(x_batch, index=None)
+    gradcam_fmap_npy = gradcam(x_batch, index=None)
 
     # Denormalize each image. This is needed to save images ONLY.
-    denormed_x_batch = ImUtils.denorm(x_batch, mean=[0.491, 0.482, 0.446], std=[0.247, 0.243, 0.261])
+    denormed_x_batch = ImUtils.denorm(x_batch,
+                                      mean=[0.491, 0.482, 0.446],
+                                      std=[0.247, 0.243, 0.261])
     x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
     y_batch_npy = y_batch.data.numpy()
 
-    log.info(f'INPUT: {x_batch_npy.shape}, MASK: {mask_batch_npy.shape}')
+    log.info(f'INPUT: {x_batch_npy.shape}, MASK: {gradcam_fmap_npy.shape}')
 
     # Save plots in a figure.
-    ImUtils.save_as_fig(x_batch_npy, y_batch_npy, mask_batch_npy, classes)
-    exit(0)
+    ImUtils.save_as_fig(x_batch_npy,
+                        y_batch_npy,
+                        gradcam_fmap_npy,
+                        classes,
+                        figname='gradcam.png')
+    del denormed_x_batch
+    del x_batch_npy
+    del y_batch_npy
+    del gradcam_fmap_npy
+
     '''
     Part 2. Guided Backpropagation + GradCam [NOT IMPLEMENTED IN BATCH]
     '''
-    # log.info('Guided Backprop + GradCam')
-    # gb_model = GuidedBackpropReLUModel(model=alexnet.module)
-    # # TODO: Figure out why explicit require_grad is needed
-    # # If index=None, returns the map for the highest scoring category.
-    # # Otherwise, targets the requested index.
-    # gb = gb_model(img.requires_grad_(True), index=None)  # This is gb = (3, IMG_SHAPE, IMG_SHAPE)
-    # gb = gb.transpose((1, 2, 0))  # Convert gb to  (IMG_SHAPE, IMG_SHAPE, 3)
-    # cam_mask = cv2.merge([mask, mask, mask])  # Converts MASK to (IMG_SHAPE, IMG_SHAPE, 3)
-    # gb = np.uint8(ImUtils.normalize(gb) * 255)
-    # cam_gb = np.uint8(ImUtils.normalize(cam_mask * gb) * 255)
-    # ImUtils.save_image(gb, 'gb.png')
-    # ImUtils.save_image(cam_gb, 'cam_gb.png')
-    # log.info('All done!')
+    log.info('Guided Backprop + GradCam')
+    guided = GuidedBackpropReLUModel(model=alexnet.module)
+
+    # Compute Guided backprop on the given input.
+    gb_fmap_npy = guided(x_batch.requires_grad_(True), index=None).transpose(
+        (0, 2, 3, 1))
+
+    # Denormalize each image. This is needed to save images ONLY.
+    denormed_x_batch = ImUtils.denorm(x_batch,
+                                      mean=[0.491, 0.482, 0.446],
+                                      std=[0.247, 0.243, 0.261])
+    x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
+    y_batch_npy = y_batch.data.numpy()
+
+    log.info(f'INPUT: {x_batch_npy.shape}, MASK: {gb_fmap_npy.shape}')
+    # Save plots in a figure.
+    ImUtils.save_as_fig(x_batch_npy,
+                        y_batch_npy,
+                        gb_fmap_npy,
+                        classes,
+                        figname='guided_backprop.png')
+    del denormed_x_batch
+    del x_batch_npy
+    del y_batch_npy
+    del gb_fmap_npy

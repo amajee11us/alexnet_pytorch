@@ -182,19 +182,24 @@ class GuidedBackpropReLUModel:
     def __call__(self, input_img, index=None):
         output = self.forward(input_img.to(device))
 
-        if index == None:
-            index = np.argmax(output.data.numpy())
+        # Evaluate N
+        n_samples = output.shape[0]
 
-        one_hot = np.zeros((1, output.size()[-1]), dtype=np.float32)
-        one_hot[0][index] = 1
-        one_hot = torch.from_numpy(one_hot).requires_grad_(True)
-        one_hot = torch.sum(one_hot.to(device) * output)
+        if index == None:
+            index = torch.argmax(output, dim=1)
+
+        # one_hot of size N x num_classes
+        one_hot = torch.zeros(output.size(), dtype=torch.float32)
+        for sample_id, pred in enumerate(index):
+            one_hot[sample_id][pred] = 1
+
+        one_hot = one_hot.requires_grad_(True)
+        one_hot = torch.sum(one_hot.to(device) * output, dim=1)
 
         # self.model.features.zero_grad()
         # self.model.classifier.zero_grad()
-        one_hot.backward(retain_graph=True)
+        one_hot.backward(gradient=torch.ones([n_samples]), retain_graph=True)
 
         output = input_img.grad.data.numpy()
-        output = output[0, :, :, :]
 
         return output
