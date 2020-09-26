@@ -32,4 +32,9 @@ def build_model(cfg):
 
     model.to(get_target_device(cfg))
 
+    # Enable data parallal if GPU is found
+    # TODO: test on multi-gpu setting
+    if "gpu" in cfg.DEVICE:
+        model = torch.nn.parallel.DataParallel(model, device_ids=cfg.GPU)
+
     return model
