@@ -10,6 +10,10 @@ import logging
 
 
 def Logger(cfg):
+    # clear all handlers
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
     # set up logging to file
     logging.basicConfig(
         filename=os.path.join(cfg.OUTPUT_DIR, 'log.log'),
@@ -63,6 +67,23 @@ def get_output_tb_dir(cfg):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     return outdir
+
+
+def get_output_ckpt_dir(cfg):
+    # Define the output path
+    out_dir = os.path.join(cfg.OUTPUT_DIR, cfg.ARCH + "_" + cfg.EXP_NAME)
+
+    if os.path.exists(out_dir):
+        logging.info(
+            "Path already exists, would be appending to the same path.")
+    else:
+        try:
+            os.makedirs(out_dir)
+            logging.info("Created working directory at : {}".format(out_dir))
+        except Exception as e:
+            logging.error("Error while directory creation: {}".format(e))
+
+    return out_dir
 
 
 def get_target_device(cfg):
