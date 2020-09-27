@@ -40,6 +40,20 @@ class CIFAR10Dataset(Dataset):
                                train=True if self.split == "train" else False,
                                transform=self.transform,
                                download=download)
+        class_names = (
+            'plane',
+            'car',
+            'bird',
+            'cat',
+            'deer',
+            'dog',
+            'frog',
+            'horse',
+            'ship',
+            'truck'
+        )
+        self.classes = {i : class_names[i] for i in range(len(class_names))}
+
         # store as merged list
         data = _cifar10_obj.data
         labels = np.array(_cifar10_obj.targets)
@@ -80,6 +94,6 @@ if __name__ == "__main__":
     train_loader = torch.utils.data.DataLoader(dataset=cifar10_data,
                                                batch_size=10,
                                                shuffle=True)
-    print(cifar10_data.__len__())
-    img, label = cifar10_data.__getitem__(0)
-    print(img.shape, label)
+    print(len(cifar10_data))
+    x, y = next(iter(train_loader))
+    print(x.shape, y.shape, [cifar10_data.classes[y_] for y_ in y.data.numpy()])
