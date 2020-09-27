@@ -20,6 +20,9 @@ from lib.utils import *
 from lib.config.conf import cfg_from_file
 from lib.config.conf import __C as cfg
 
+# define logger
+log = Logger(cfg)
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -50,9 +53,6 @@ def main():
     # Get configuration
     cfg_from_file(args.config_file)
     cfg.OUTPUT_DIR = get_output_ckpt_dir(cfg)
-
-    #define logger
-    log = Logger(cfg)
 
     log.info("Reading config from file: {}".format(args.config_file))
 

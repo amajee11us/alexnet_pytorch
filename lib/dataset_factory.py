@@ -6,7 +6,7 @@ Data-store
 
 1. Load and validate transforms (boolean transforms)
 2. load dataset object
-3. Apply transforms 
+3. Apply transforms
 4. create an iterable dataloader
 '''
 import torch
@@ -53,7 +53,7 @@ def load_transforms(cfg, split):
         transforms.Normalize(mean=dataset_params.DATASET.NORM_MEAN,
                              std=dataset_params.DATASET.NORM_STD_DEV))
 
-    logging.info("Transforms used : \n {}".format(transform_list))
+    logging.info("\nTransforms used :\n{}".format(transform_list))
     return transforms.Compose(transform_list)
 
 
