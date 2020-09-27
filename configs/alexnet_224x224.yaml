@@ -3,7 +3,13 @@ DEVICE: "gpu"
 TRAIN:
   LEARNING_RATE: 0.01
   IMAGE_SIZE: 224
-  DATASET: "imagenet"
+  DATASET: 
+  DATASET:
+    NAME: "imagenet"
+    RANDOM_CROP: True
+    CROP_SIZE: 224
+    NORM_MEAN: [0.485, 0.456, 0.406]
+    NORM_STD_DEV: [0.229, 0.224, 0.225]
   DATA_DIR: 'data/imagenet'
   BATCH_SIZE: 128
   NUM_CLASSES: 1000
@@ -12,5 +18,11 @@ TRAIN:
 PRINT_FREQUENCY: 100
 
 TEST:
-  DATASET: "imagenet"
+  DATASET: 
+    NAME: "imagenet"
+    NORM_MEAN: [0.485, 0.456, 0.406]
+    NORM_STD_DEV: [0.229, 0.224, 0.225]
+    RANDOM_CROP: True
+    CROP_SIZE: 224
+  BATCH_SIZE: 128
   DATA_DIR: 'data/imagenet'
