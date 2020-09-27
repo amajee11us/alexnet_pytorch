@@ -176,8 +176,6 @@ def main():
     if not args.resume == None:
         resume_from_ckpt(args.resume, alexnet, optimizer)
 
-    np.random.seed(0)
-    torch.manual_seed(0)
 
     '''
     Prepare data batch for inference/saving data

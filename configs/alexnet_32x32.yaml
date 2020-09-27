@@ -9,7 +9,7 @@ TRAIN:
         RANDOM_CROP: True
         CROP_SIZE: 224
         PIL: True
-        NORM_MEAN: [0.557, 0.482, 0.446]
+        NORM_MEAN: [0.491, 0.482, 0.446]
         NORM_STD_DEV: [0.247, 0.244, 0.262]
     DATA_DIR: 'data/cifar10'
     BATCH_SIZE: 128
@@ -19,9 +19,9 @@ TRAIN:
 PRINT_FREQUENCY: 100
 
 TEST:
-    DATASET: 
+    DATASET:
         NAME: "cifar10"
-        NORM_MEAN: [0.557, 0.482, 0.446]
+        NORM_MEAN: [0.491, 0.482, 0.446]
         NORM_STD_DEV: [0.247, 0.244, 0.262]
         PIL: True
         RESIZE: True
