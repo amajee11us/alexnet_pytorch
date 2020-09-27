@@ -184,10 +184,6 @@ if __name__ == '__main__':
                         gradcam_fmap_npy,
                         classes,
                         figname='gradcam.png')
-    del denormed_x_batch
-    del x_batch_npy
-    del y_batch_npy
-    del gradcam_fmap_npy
 
     '''
     Part 2. Guided Backpropagation + GradCam [NOT IMPLEMENTED IN BATCH]
@@ -213,7 +209,3 @@ if __name__ == '__main__':
                         gb_fmap_npy,
                         classes,
                         figname='guided_backprop.png')
-    del denormed_x_batch
-    del x_batch_npy
-    del y_batch_npy
-    del gb_fmap_npy
