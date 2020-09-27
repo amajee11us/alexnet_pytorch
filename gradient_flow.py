@@ -1,26 +1,35 @@
-import os
+import argparse
 import logging
-
-import cv2
+import os
+import pprint
 import shutil
-import torch
-import numpy as np
+
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import normalize
-import torchvision.transforms as transforms
+import numpy as np
+import torch
+from tensorboardX import SummaryWriter
 
-from lib import model
-from lib.engine import resume_from_ckpt
 from dataset import cifar10, imagenet
-from lib.config.conf import cfg_from_file
 from lib.config.conf import __C as cfg
-from lib.utils import get_target_device
+from lib.config.conf import cfg_from_file
+from lib.dataset_factory import build_dataset
+from lib.engine import resume_from_ckpt
 from lib.gradcam import GradCam, GuidedBackpropReLUModel
+from lib.models import factory
+from lib.solver import build_lr_scheduler, build_optimizer
+from lib.utils import *
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
+# Create logger object
+log = Logger(cfg)
+
+# This path will store gradient visualization cache.
+DUMP_DIR = os.path.join(cfg.OUTPUT_DIR, 'gradients')
+if os.path.exists(DUMP_DIR):
+    shutil.rmtree(DUMP_DIR)
+os.mkdir(DUMP_DIR)
 
 
+# TODO: Move ImUtils to some generic module
 class ImUtils(object):
     @staticmethod
     def denorm(img_tensor, mean, std):
@@ -110,54 +119,80 @@ class ImUtils(object):
             log.error(f'Exception in save: {e}')
 
 
-if __name__ == '__main__':
-    '''
-    Config/Output setup
-    '''
-    cfg_from_file('configs/alexnet_32x32.yaml')
-    device = get_target_device(cfg=cfg)
-    DUMP_DIR = os.path.join(cfg.OUTPUT_DIR, 'gradients')
-    if os.path.exists(DUMP_DIR):
-        shutil.rmtree(DUMP_DIR)
-    os.mkdir(DUMP_DIR)
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description='PyTorch ImageNet/CIFAR10 Training')
+
+    # General parser
+    parser.add_argument('-c',
+                        '--config_file',
+                        dest='config_file',
+                        default='configs/alexnet_32x32.yaml',
+                        help='model architecture (default: alexnet)')
+    parser.add_argument('--resume',
+                        default=None,
+                        type=str,
+                        metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
+    parser.add_argument('--seed',
+                        default=None,
+                        type=int,
+                        help='seed for initializing training. ')
+
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse_args()
+    # Get configuration
+    cfg_from_file(args.config_file)
+    cfg.OUTPUT_DIR = get_output_ckpt_dir(cfg)
+
+    log.info("Reading config from file: {}".format(args.config_file))
+
+    log.info(pprint.PrettyPrinter(indent=4).pprint(cfg))
+    # Select appropriate device
+    device = get_target_device(cfg)
+    log.info(f'Using {device} for execution.')
+
+    # Model/Optimizer setup
+    tbwriter = SummaryWriter(log_dir=get_output_tb_dir(cfg))
+    if args.seed is None:
+        seed = torch.initial_seed()
+    else:
+        seed = torch.manual_seed(args.seed)
+    log.info("Using Seed : {}".format(seed))
+
+    # create model and load to device
+    alexnet = factory.build_model(cfg)
+    log.info(alexnet)
+
+    # Create optimizer
+    optimizer = build_optimizer(cfg, alexnet)
+    lr_scheduler = build_lr_scheduler(cfg, optimizer)
+
+    # Resume from a checkpoint
+    if not args.resume == None:
+        resume_from_ckpt(args.resume, alexnet, optimizer)
 
     np.random.seed(0)
     torch.manual_seed(0)
+
     '''
-    Load a pretrained Model
+    Prepare data batch for inference/saving data
     '''
-    alexnet = model.AlexNet(cfg=cfg)
-    alexnet = alexnet.to(device)
-    if 'gpu' in cfg.DEVICE:
-        alexnet = torch.nn.parallel.DataParallel(alexnet, device_ids=cfg.GPU)
-    optimizer = torch.optim.Adam(params=alexnet.parameters(), lr=0.0001)
-    resume_from_ckpt('output/alexnet_basic_cifar_32/model_best.pth', alexnet,
-                     optimizer)
-    '''
-    Prepare dataloader
-    '''
-    transformations = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.Resize(256),
-        transforms.RandomCrop(cfg.TRAIN.IMAGE_SIZE),  # square image transform
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[x for x in [0.491, 0.482, 0.446]],
-                             std=[x for x in [0.247, 0.243, 0.261]])
-    ])
-    cifar10_data = cifar10.CIFAR10Dataset('data/cifar10',
-                                          'train',
-                                          transform=transformations)
-    train_loader = torch.utils.data.DataLoader(dataset=cifar10_data,
-                                               batch_size=8,
-                                               shuffle=True)
-    '''
-    Load a datapoint
-    '''
-    # TODO: Send this to CIFAR class, it is helpful there too
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse',
-               'ship', 'truck')
+    # Prepare dataloader
+    train_loader = build_dataset(cfg, split='train')
+    # Load a datapoint
     x_batch, y_batch = next(iter(train_loader))
+    x_batch, y_batch = x_batch[:8], y_batch[:8]
+    # Denormalize each image. This is needed to save images ONLY.
+    denormed_x_batch = ImUtils.denorm(x_batch,
+                                      mean=cfg.TRAIN.DATASET.NORM_MEAN,
+                                      std=cfg.TRAIN.DATASET.NORM_STD_DEV)
+    x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
+    y_batch_npy = y_batch.data.numpy()
 
     '''
     Part 1. GradCam
@@ -168,44 +203,42 @@ if __name__ == '__main__':
                       target_layer_names=["12"])
     # Evaluate CAMs over batch and convert to npy arrays. Mask default is npy array
     gradcam_fmap_npy = gradcam(x_batch, index=None)
-
-    # Denormalize each image. This is needed to save images ONLY.
-    denormed_x_batch = ImUtils.denorm(x_batch,
-                                      mean=[0.491, 0.482, 0.446],
-                                      std=[0.247, 0.243, 0.261])
-    x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
-    y_batch_npy = y_batch.data.numpy()
-
     log.info(f'INPUT: {x_batch_npy.shape}, MASK: {gradcam_fmap_npy.shape}')
 
     # Save plots in a figure.
     ImUtils.save_as_fig(x_batch_npy,
                         y_batch_npy,
                         gradcam_fmap_npy,
-                        classes,
+                        classes = None,
                         figname='gradcam.png')
-
     '''
-    Part 2. Guided Backpropagation + GradCam [NOT IMPLEMENTED IN BATCH]
+    Part 2. Guided Backpropagation
     '''
-    log.info('Guided Backprop + GradCam')
+    log.info('Guided Backprop')
     guided = GuidedBackpropReLUModel(model=alexnet.module)
-
-    # Compute Guided backprop on the given input.
-    gb_fmap_npy = guided(x_batch.requires_grad_(True), index=None).transpose(
-        (0, 2, 3, 1))
-
-    # Denormalize each image. This is needed to save images ONLY.
-    denormed_x_batch = ImUtils.denorm(x_batch,
-                                      mean=[0.491, 0.482, 0.446],
-                                      std=[0.247, 0.243, 0.261])
-    x_batch_npy = denormed_x_batch.data.numpy().transpose((0, 2, 3, 1))
-    y_batch_npy = y_batch.data.numpy()
-
+    # Compute Guided backprop. Returns (N, H, W, C)
+    gb_fmap_npy = guided(x_batch.requires_grad_(True), index=None).transpose((0, 2, 3, 1))
     log.info(f'INPUT: {x_batch_npy.shape}, MASK: {gb_fmap_npy.shape}')
     # Save plots in a figure.
     ImUtils.save_as_fig(x_batch_npy,
                         y_batch_npy,
                         gb_fmap_npy,
-                        classes,
+                        classes = None,
                         figname='guided_backprop.png')
+
+    '''
+    Part 3. Guided Backpropagation + GradCam
+    '''
+    log.info('Guided Backprop + GradCam')
+    # GradCam gives 1 channel, GuidedBackprop gives 3 channels (since equal to input ch)
+    cam_plus_gb_npy = np.stack([gradcam_fmap_npy for _ in range(3)], axis=-1) * gb_fmap_npy
+    log.info(f'INPUT: {x_batch_npy.shape}, MASK: {cam_plus_gb_npy.shape}')
+    # Save plots in a figure.
+    ImUtils.save_as_fig(x_batch_npy,
+                        y_batch_npy,
+                        cam_plus_gb_npy,
+                        classes = None,
+                        figname='guided_backprop_gradcam.png')
+
+if __name__ == "__main__":
+    main()

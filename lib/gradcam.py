@@ -1,8 +1,5 @@
 # Derived from implementation in PyTorch by jacobgil
 # Link to source repo: https://github.com/jacobgil/pytorch-grad-cam
-# import sys
-# sys.path.insert(0, '../dataset')
-import logging
 import argparse
 
 import cv2
@@ -11,14 +8,10 @@ import numpy as np
 from torchvision import transforms
 from torch.autograd import Function
 
-from .model import AlexNet
 from .utils import get_target_device
-from .engine import resume_from_ckpt
 from .config.conf import cfg_from_file
 from .config.conf import __C as cfg
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger(__name__)
 device = get_target_device(cfg=cfg)
 
 class FeatureExtractor():
