@@ -15,7 +15,7 @@ class CIFAR10Dataset(Dataset):
                  transform=None,
                  num_classes=10,
                  random_seed=42,
-                 download=False):
+                 download=True):
         '''
         Data loader for CIFAR10 dataset
         Arguments:
@@ -30,11 +30,11 @@ class CIFAR10Dataset(Dataset):
             raise Exception("Such split does not exist")
 
         self.data_path = data_path
-        if not os.path.exists(self.data_path) and download == False:
+        if not os.path.exists(self.data_path):
             raise Exception("Data path: {} does not exist for split {}".format(
                 self.data_path, self.split))
-        elif download and os.path.exists(self.data_path):
-            #No need to download thus override
+        else:
+            # No need to download thus override (since path exists)
             download = False
         _cifar10_obj = CIFAR10(root=self.data_path,
                                train=True if self.split == "train" else False,
